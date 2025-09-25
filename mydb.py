@@ -8,15 +8,18 @@ class MyDB:
         if not os.path.isfile(self.fname):
             self.saveStrings([])
 
+# Read the currnt contents of the db
     def loadStrings(self):
         with open(self.fname, 'rb') as f:
             arr = pickle.load(f)
         return arr
 
+# Overwirte the DB with this list
     def saveStrings(self, arr):
         with open(self.fname, 'wb') as f:
             pickle.dump(arr, f)
 
+# Append one string to the DB
     def saveString(self, s):
         arr = self.loadStrings()
         arr.append(s)

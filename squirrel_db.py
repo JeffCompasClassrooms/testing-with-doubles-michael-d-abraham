@@ -1,5 +1,6 @@
 import sqlite3
 
+# build the data into dictionaries instead of plain tuples
 def dict_factory(cursor, row):
     d = {}
     for idx, col in enumerate(cursor.description):
