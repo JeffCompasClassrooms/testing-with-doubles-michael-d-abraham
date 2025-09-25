@@ -59,3 +59,22 @@ def describe_MyDB():
             mock_open.assert_not_called()
             mock_dump.assert_not_called()
 
+
+    def describe_loadStrings():
+
+        def it_returns_list_from_file(mocker):
+            # use the mocker open instead
+            mocker.patch("builtins.open", mocker.mock_open())
+            # fake pickle.oad so it just retunrs mike, gaot
+            mock_load = mocker.patch("pickle.load", return_value=["Mike", "Goat"])
+            # when it checks to see if there is a file say yes there is one
+            mocker.patch("os.path.isfile", return_value=True)
+
+            # call the homie
+            db = MyDB("mydatabase.db")
+            result = db.loadStrings()
+
+            # and finally check to see if its correct
+            assert result == ["Mike", "Goat"]
+            # and it should of only ran exactly one time
+            mock_load.assert_called_once()
