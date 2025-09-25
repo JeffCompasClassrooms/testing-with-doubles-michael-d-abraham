@@ -79,23 +79,22 @@ def describe_MyDB():
             # and it should of only ran exactly one time
             mock_load.assert_called_once()
 
-    def describe_saveStrings(mocker):
+    def describe_saveStrings():
 
         def it_writes_array_to_file(mocker):
             # Fake the opening
             mock_open = mocker.patch("builtins.open", mocker.mock_open())
 
             # fake the dump
-            mock_dump = mocker.patch("picke.dump")
+            mock_dump = mocker.patch("pickle.dump")
 
             # show that arr exsits or the file
             mocker.patch("os.path.isfile", return_value=True)
 
             # call the bro
             db = MyDB("mydatabase.db")
-            db.saveString(["Mike","Going","Places"])
+            db.saveStrings(["Mike","Going","Places"])
 
             # check to see if it worked
-
             mock_open.assert_called_once_with("mydatabase.db", "wb")
             mock_dump.assert_called_once_with(["Mike","Going","Places"], mock_open.return_value)
