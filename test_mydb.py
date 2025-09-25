@@ -37,19 +37,24 @@ def describe_MyDB():
             # These are built in function for mocker
             # see if mydatabase.db was called examply once
             mock_isfile.assert_called_once_with("mydatabase.db")
+            # sees that the open file is called once in bytes
             mock_open.assert_called_once_with("mydatabase.db", "wb")
+            # This see that mock_dump was called exaactly once and creates []
             mock_dump.assert_called_once_with([], mock_open.return_value)
 
         def it_does_not_create_database_if_it_already_exists(mocker):
             # Arrange: force the "file exists" branch
             mock_isfile = mocker.patch("os.path.isfile", return_value=True)
+            # swaps the python open for the mock open isntad
             mock_open = mocker.patch("builtins.open", mocker.mock_open())
+            # Any where pickle dump would be used we use mocker instead
             mock_dump = mocker.patch("pickle.dump")
 
             # Act
             MyDB("mydatabase.db")
 
             # Assert: no writes if the file already exists
+            # Checks to see if your stubbed functions were called during the test
             mock_isfile.assert_called_once_with("mydatabase.db")
             mock_open.assert_not_called()
             mock_dump.assert_not_called()
