@@ -1,12 +1,10 @@
-# Unit tests for SquirrelServerHandler using test doubles only.
-# No real HTTPServer, no real SQLite.
+
 
 import io
 import json
 import pytest
 from squirrel_server import SquirrelServerHandler
 from squirrel_db import SquirrelDB
-
 
 
 class FakeRequest:
@@ -30,8 +28,7 @@ class FakeRequest:
         elif args[0] == 'wb':
             return self._mock_wfile
 
-
-# Fixtues 
+# fixcutes
 @pytest.fixture
 def dummy_client():
     return ('127.0.0.1', 80)
@@ -40,18 +37,18 @@ def dummy_client():
 def dummy_server():
     return None
 
-# small write buffer i dont really get this but it works so cool
+# small write buffer (I don’t really get why it matters but it works so cool)
 @pytest.fixture(autouse=True)
 def patch_wbufsize(mocker):
     mocker.patch.object(SquirrelServerHandler, 'wbufsize', 1)
 
-# makes sure that it  never open a real sqlite connection
+# makes sure that it never opens a real sqlite connection
 @pytest.fixture
 def mock_db_init(mocker):
     return mocker.patch.object(SquirrelDB, '__init__', return_value=None)
 
-# Took these from the example thes are great
-# read the doc and still only kinda got whats going on wit hthes 
+# Took these from the example — these are great
+# I read the docs and still only kinda get what’s going on with these
 @pytest.fixture
 def mock_response_methods(mocker):
     mock_send_response = mocker.patch.object(SquirrelServerHandler, 'send_response')
@@ -60,67 +57,182 @@ def mock_response_methods(mocker):
     return mock_send_response, mock_send_header, mock_end_headers
 
 
-# Tests
-def describe_routing_for_unknown_resource():
+# TESTS
+def describe_SquirrelServerHandler():
 
-    def it_returns_404_for_unknown_collection(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
-        # GET /mike should route to handle404 vcause it doesn't exist
-        req = FakeRequest(mocker.Mock(), 'GET', '/mike')
+    # GET /squirrels → handleSquirrelsIndex
+    def describe_handleSquirrelsIndex():
+        def it_returns_200_and_json_list(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+            # stub DB to return a simple list
+            mock_get = mocker.patch.object(SquirrelDB, 'getSquirrels', return_value=['s1'])
+            req = FakeRequest(mocker.Mock(), 'GET', '/squirrels')
 
-        handler = SquirrelServerHandler(req, dummy_client, dummy_server)
+            handler = SquirrelServerHandler(req, dummy_client, dummy_server)
 
-        send, hdr, end = mock_response_methods
-        send.assert_called_once_with(404)
-        hdr.assert_called_once_with("Content-Type", "text/plain")
-        end.assert_called_once()
-        handler.wfile.write.assert_called_once_with(b"404 Not Found")
+            # check DB called once, response headers, and correct JSON written
+            mock_get.assert_called_once_with()
+            send, hdr, end = mock_response_methods
+            send.assert_called_once_with(200)
+            hdr.assert_called_once_with("Content-Type", "application/json")
+            end.assert_called_once()
+            handler.wfile.write.assert_called_once_with(bytes(json.dumps(['s1']), 'utf-8'))
 
+    # GET /squirrels/{id} → handleSquirrelsRetrieve
+    def describe_handleSquirrelsRetrieve():
+        def it_returns_200_and_the_squirrel_when_found(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+            mock_get = mocker.patch.object(SquirrelDB, 'getSquirrel', return_value={'id': '1', 'name': 'Fluffy', 'size': 'large'})
+            req = FakeRequest(mocker.Mock(), 'GET', '/squirrels/1')
 
-def it_returns_404_when_put_has_no_id(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
-    # PUT /squirrels (no id) should hit handle404 via do_PUT
-    req = FakeRequest(mocker.Mock(), 'PUT', '/squirrels')
+            handler = SquirrelServerHandler(req, dummy_client, dummy_server)
 
-    handler = SquirrelServerHandler(req, dummy_client, dummy_server)
+            # found squirrel → 200, JSON
+            mock_get.assert_called_once_with('1')
+            send, hdr, end = mock_response_methods
+            send.assert_called_once_with(200)
+            hdr.assert_called_once_with("Content-Type", "application/json")
+            end.assert_called_once()
+            handler.wfile.write.assert_called_once_with(bytes(json.dumps({'id': '1', 'name': 'Fluffy', 'size': 'large'}), 'utf-8'))
 
-    send, hdr, end = mock_response_methods
-    send.assert_called_once_with(404)
-    hdr.assert_called_once_with("Content-Type", "text/plain")
-    end.assert_called_once()
-    handler.wfile.write.assert_called_once_with(b"404 Not Found")
+        def it_calls_handle404_when_id_not_found(mocker, mock_db_init, dummy_client, dummy_server):
+            mocker.patch.object(SquirrelDB, 'getSquirrel', return_value=None)
+            spy_404 = mocker.patch.object(SquirrelServerHandler, 'handle404')
+            req = FakeRequest(mocker.Mock(), 'GET', '/squirrels/999')
 
+            SquirrelServerHandler(req, dummy_client, dummy_server)
 
-def it_returns_404_when_delete_has_no_id(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
-    # DELETE /squirrels (no id) should hit handle404 via do_DELETE
-    req = FakeRequest(mocker.Mock(), 'DELETE', '/squirrels')
+            # missing squirrel should trigger handle404
+            spy_404.assert_called_once()
 
-    handler = SquirrelServerHandler(req, dummy_client, dummy_server)
+    # POST /squirrels → handleSquirrelsCreate
+    def describe_handleSquirrelsCreate():
+        def it_creates_and_returns_201(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+            # important: server expects form-encoded, not JSON
+            req = FakeRequest(mocker.Mock(), 'POST', '/squirrels', body='name=Chippy&size=small')
+            mock_create = mocker.patch.object(SquirrelDB, 'createSquirrel', return_value=None)
 
-    send, hdr, end = mock_response_methods
-    send.assert_called_once_with(404)
-    hdr.assert_called_once_with("Content-Type", "text/plain")
-    end.assert_called_once()
-    handler.wfile.write.assert_called_once_with(b"404 Not Found")
+            SquirrelServerHandler(req, dummy_client, dummy_server)
 
+            mock_create.assert_called_once_with('Chippy', 'small')
+            send, hdr, end = mock_response_methods
+            send.assert_called_once_with(201)
+            end.assert_called_once()
+            # create does not write a body
+            req._mock_wfile.write.assert_not_called()
 
-# In describe_handleSquirrelsUpdate, after your 204 success test:
-def it_does_not_write_body_on_204_update(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
-    mocker.patch.object(SquirrelDB, 'getSquirrel', return_value={'id': '10'})
-    mocker.patch.object(SquirrelDB, 'updateSquirrel', return_value=None)
-    req = FakeRequest(mocker.Mock(), 'PUT', '/squirrels/10', body='name=A&size=B')
+        def it_returns_404_if_post_includes_id(mocker, dummy_client, dummy_server, mock_response_methods):
+            # router treats POST /squirrels/{id} as 404
+            req = FakeRequest(mocker.Mock(), 'POST', '/squirrels/42')
 
-    SquirrelServerHandler(req, dummy_client, dummy_server)
+            handler = SquirrelServerHandler(req, dummy_client, dummy_server)
 
-    # 204 → no body
-    req._mock_wfile.write.assert_not_called()
+            send, hdr, end = mock_response_methods
+            send.assert_called_once_with(404)
+            hdr.assert_called_once_with("Content-Type", "text/plain")
+            end.assert_called_once()
+            handler.wfile.write.assert_called_once_with(b"404 Not Found")
 
+    # PUT /squirrels/{id} → handleSquirrelsUpdate
+    def describe_handleSquirrelsUpdate():
+        def it_updates_and_returns_204_when_found(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+            mocker.patch.object(SquirrelDB, 'getSquirrel', return_value={'id': '1'})
+            mock_update = mocker.patch.object(SquirrelDB, 'updateSquirrel', return_value=None)
+            req = FakeRequest(mocker.Mock(), 'PUT', '/squirrels/1', body='name=Nova&size=medium')
 
-# In describe_handleSquirrelsDelete, after your 204 success test:
-def it_does_not_write_body_on_204_delete(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
-    mocker.patch.object(SquirrelDB, 'getSquirrel', return_value={'id': '11'})
-    mocker.patch.object(SquirrelDB, 'deleteSquirrel', return_value=None)
-    req = FakeRequest(mocker.Mock(), 'DELETE', '/squirrels/11')
+            SquirrelServerHandler(req, dummy_client, dummy_server)
 
-    SquirrelServerHandler(req, dummy_client, dummy_server)
+            mock_update.assert_called_once_with('1', 'Nova', 'medium')
+            send, hdr, end = mock_response_methods
+            send.assert_called_once_with(204)
+            end.assert_called_once()
+            # 204 → no body written
+            req._mock_wfile.write.assert_not_called()
 
-    # 204 → no body
-    req._mock_wfile.write.assert_not_called()
+        def it_calls_handle404_when_updating_missing(mocker, mock_db_init, dummy_client, dummy_server):
+            mocker.patch.object(SquirrelDB, 'getSquirrel', return_value=None)
+            spy_update = mocker.patch.object(SquirrelDB, 'updateSquirrel', return_value=None)
+            spy_404 = mocker.patch.object(SquirrelServerHandler, 'handle404')
+            req = FakeRequest(mocker.Mock(), 'PUT', '/squirrels/404', body='name=X&size=S')
+
+            SquirrelServerHandler(req, dummy_client, dummy_server)
+
+            spy_404.assert_called_once()
+            spy_update.assert_not_called()
+
+        def it_returns_404_when_put_has_no_id(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+            # PUT /squirrels (no id) should hit handle404 via do_PUT
+            req = FakeRequest(mocker.Mock(), 'PUT', '/squirrels')
+
+            handler = SquirrelServerHandler(req, dummy_client, dummy_server)
+
+            send, hdr, end = mock_response_methods
+            send.assert_called_once_with(404)
+            hdr.assert_called_once_with("Content-Type", "text/plain")
+            end.assert_called_once()
+            handler.wfile.write.assert_called_once_with(b"404 Not Found")
+
+    # DELETE /squirrels/{id} → handleSquirrelsDelete
+    def describe_handleSquirrelsDelete():
+        def it_deletes_and_returns_204_when_found(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+            mocker.patch.object(SquirrelDB, 'getSquirrel', return_value={'id': '2'})
+            mock_delete = mocker.patch.object(SquirrelDB, 'deleteSquirrel', return_value=None)
+            req = FakeRequest(mocker.Mock(), 'DELETE', '/squirrels/2')
+
+            SquirrelServerHandler(req, dummy_client, dummy_server)
+
+            mock_delete.assert_called_once_with('2')
+            send, hdr, end = mock_response_methods
+            send.assert_called_once_with(204)
+            end.assert_called_once()
+            # 204 → no body
+            req._mock_wfile.write.assert_not_called()
+
+        def it_calls_handle404_when_deleting_missing(mocker, mock_db_init, dummy_client, dummy_server):
+            mocker.patch.object(SquirrelDB, 'getSquirrel', return_value=None)
+            spy_delete = mocker.patch.object(SquirrelDB, 'deleteSquirrel', return_value=None)
+            spy_404 = mocker.patch.object(SquirrelServerHandler, 'handle404')
+            req = FakeRequest(mocker.Mock(), 'DELETE', '/squirrels/123')
+
+            SquirrelServerHandler(req, dummy_client, dummy_server)
+
+            spy_404.assert_called_once()
+            spy_delete.assert_not_called()
+
+        def it_returns_404_when_delete_has_no_id(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+            # DELETE /squirrels (no id) should hit handle404 via do_DELETE
+            req = FakeRequest(mocker.Mock(), 'DELETE', '/squirrels')
+
+            handler = SquirrelServerHandler(req, dummy_client, dummy_server)
+
+            send, hdr, end = mock_response_methods
+            send.assert_called_once_with(404)
+            hdr.assert_called_once_with("Content-Type", "text/plain")
+            end.assert_called_once()
+            handler.wfile.write.assert_called_once_with(b"404 Not Found")
+
+    # Directly test handle404
+    def describe_handle404():
+        def it_writes_plain_text_404(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+            req = FakeRequest(mocker.Mock(), 'GET', '/anything')
+            handler = SquirrelServerHandler(req, dummy_client, dummy_server)
+
+            handler.handle404()
+
+            send, hdr, end = mock_response_methods
+            send.assert_called_with(404)
+            hdr.assert_called_with("Content-Type", "text/plain")
+            end.assert_called()
+            handler.wfile.write.assert_called_with(b"404 Not Found")
+
+    # Routing check for unknown resources
+    def describe_routing_for_unknown_resource():
+        def it_returns_404_for_unknown_collection(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+            # GET /mike should route to handle404 because it doesn’t exist
+            req = FakeRequest(mocker.Mock(), 'GET', '/mike')
+
+            handler = SquirrelServerHandler(req, dummy_client, dummy_server)
+
+            send, hdr, end = mock_response_methods
+            send.assert_called_once_with(404)
+            hdr.assert_called_once_with("Content-Type", "text/plain")
+            end.assert_called_once()
+            handler.wfile.write.assert_called_once_with(b"404 Not Found")
