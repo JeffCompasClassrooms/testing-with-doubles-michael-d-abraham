@@ -87,3 +87,40 @@ def it_returns_404_when_put_has_no_id(mocker, mock_db_init, dummy_client, dummy_
     hdr.assert_called_once_with("Content-Type", "text/plain")
     end.assert_called_once()
     handler.wfile.write.assert_called_once_with(b"404 Not Found")
+
+
+def it_returns_404_when_delete_has_no_id(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+    # DELETE /squirrels (no id) should hit handle404 via do_DELETE
+    req = FakeRequest(mocker.Mock(), 'DELETE', '/squirrels')
+
+    handler = SquirrelServerHandler(req, dummy_client, dummy_server)
+
+    send, hdr, end = mock_response_methods
+    send.assert_called_once_with(404)
+    hdr.assert_called_once_with("Content-Type", "text/plain")
+    end.assert_called_once()
+    handler.wfile.write.assert_called_once_with(b"404 Not Found")
+
+
+# In describe_handleSquirrelsUpdate, after your 204 success test:
+def it_does_not_write_body_on_204_update(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+    mocker.patch.object(SquirrelDB, 'getSquirrel', return_value={'id': '10'})
+    mocker.patch.object(SquirrelDB, 'updateSquirrel', return_value=None)
+    req = FakeRequest(mocker.Mock(), 'PUT', '/squirrels/10', body='name=A&size=B')
+
+    SquirrelServerHandler(req, dummy_client, dummy_server)
+
+    # 204 → no body
+    req._mock_wfile.write.assert_not_called()
+
+
+# In describe_handleSquirrelsDelete, after your 204 success test:
+def it_does_not_write_body_on_204_delete(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+    mocker.patch.object(SquirrelDB, 'getSquirrel', return_value={'id': '11'})
+    mocker.patch.object(SquirrelDB, 'deleteSquirrel', return_value=None)
+    req = FakeRequest(mocker.Mock(), 'DELETE', '/squirrels/11')
+
+    SquirrelServerHandler(req, dummy_client, dummy_server)
+
+    # 204 → no body
+    req._mock_wfile.write.assert_not_called()
