@@ -32,3 +32,32 @@ class FakeRequest:
         elif args[0] == 'wb':
             return self._mock_wfile
 
+
+# fixtures
+# still trying to follow the exapmes
+
+@pytest.fixture
+def dummy_client():
+    return ('127.0.0.1', 80)
+
+@pytest.fixture
+def dummy_server():
+    return None
+
+# make handler use a tiny write buffer (like the example)
+@pytest.fixture(autouse=True)
+def patch_wbufsize(mocker):
+    mocker.patch.object(SquirrelServerHandler, 'wbufsize', 1)
+
+# stub SquirrelDB.__init__ so we never open sqlite
+@pytest.fixture
+def mock_db_init(mocker):
+    return mocker.patch.object(SquirrelDB, '__init__', return_value=None)
+
+# convenience fixture to mock response methods and assert calls
+@pytest.fixture
+def mock_response_methods(mocker):
+    mock_send_response = mocker.patch.object(SquirrelServerHandler, 'send_response')
+    mock_send_header   = mocker.patch.object(SquirrelServerHandler, 'send_header')
+    mock_end_headers   = mocker.patch.object(SquirrelServerHandler, 'end_headers')
+    return mock_send_response, mock_send_header, mock_end_headers
