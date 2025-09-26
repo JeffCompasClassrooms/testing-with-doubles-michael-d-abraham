@@ -74,3 +74,16 @@ def describe_routing_for_unknown_resource():
         hdr.assert_called_once_with("Content-Type", "text/plain")
         end.assert_called_once()
         handler.wfile.write.assert_called_once_with(b"404 Not Found")
+
+
+def it_returns_404_when_put_has_no_id(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+    # PUT /squirrels (no id) should hit handle404 via do_PUT
+    req = FakeRequest(mocker.Mock(), 'PUT', '/squirrels')
+
+    handler = SquirrelServerHandler(req, dummy_client, dummy_server)
+
+    send, hdr, end = mock_response_methods
+    send.assert_called_once_with(404)
+    hdr.assert_called_once_with("Content-Type", "text/plain")
+    end.assert_called_once()
+    handler.wfile.write.assert_called_once_with(b"404 Not Found")
