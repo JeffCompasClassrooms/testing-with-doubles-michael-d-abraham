@@ -98,3 +98,27 @@ def describe_MyDB():
             # check to see if it worked
             mock_open.assert_called_once_with("mydatabase.db", "wb")
             mock_dump.assert_called_once_with(["Mike","Going","Places"], mock_open.return_value)
+
+    def describe_saveString():
+
+        def it_adds_one_string(mocker):
+            # repalce the function with mocker and have "Mike, Is" be already in the db
+            mock_loadStrings = mocker.patch.object(MyDB, "loadStrings", return_value=["Mike", "Is"])
+            #mock the savestring function for my mine that doesn't do anything
+            mock_saveStrings = mocker.patch.object(MyDB, "saveStrings")
+            # Show that there is a file even tho theres not
+
+            mocker.patch("os.path.isfile", return_value=True)
+
+            # run it
+            db = MyDB("mydatabase.db")
+            db.saveString("HIM")
+
+            # loadstrings is called only once
+            mock_loadStrings.assert_called_once()
+            # that saveStrings is called only once and with the added HIM
+            mock_saveStrings.assert_called_once_with(["Mike", "Is", "HIM"])
+
+
+
+            
