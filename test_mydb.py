@@ -8,6 +8,8 @@ todo = pytest.mark.skip(reason='still need to do')
 def describe_MyDB():
 
     # Safety check: nothing should actually write a file during this test session
+    # autoTrue means it will run automatically for every matching scope session kinda cool
+
     @pytest.fixture(autouse=True, scope="session")
     def verify_filesystem_is_not_touched():
         yield
@@ -102,7 +104,7 @@ def describe_MyDB():
     def describe_saveString():
 
         def it_adds_one_string(mocker):
-            # repalce the function with mocker and have "Mike, Is" be already in the db
+            # repalce the function with mocker and have "Mike, Is" be passed in as if it was the db
             mock_loadStrings = mocker.patch.object(MyDB, "loadStrings", return_value=["Mike", "Is"])
             #mock the savestring function for my mine that doesn't do anything
             mock_saveStrings = mocker.patch.object(MyDB, "saveStrings")
@@ -111,6 +113,7 @@ def describe_MyDB():
             mocker.patch("os.path.isfile", return_value=True)
 
             # run it
+
             db = MyDB("mydatabase.db")
             db.saveString("HIM")
 
