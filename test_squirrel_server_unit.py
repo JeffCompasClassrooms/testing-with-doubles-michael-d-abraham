@@ -1,11 +1,12 @@
+# Unit tests for SquirrelServerHandler using test doubles only.
+# No real HTTPServer, no real SQLite.
+
 import io
 import json
 import pytest
 from squirrel_server import SquirrelServerHandler
 from squirrel_db import SquirrelDB
 
-
-# working through examples
 
 
 class FakeRequest:
@@ -19,23 +20,18 @@ class FakeRequest:
         return
 
     def makefile(self, *args, **kwargs):
-        # args[0] == 'rb' for reading request, 'wb' for writing response
+        # 'rb' is what the handler reads (request line + headers + body)
         if args[0] == 'rb':
-            if self._body is not None:
-                headers = f'Content-Length: {len(self._body)}\r\n'
-                body = self._body
-            else:
-                headers = ''
-                body = ''
+            headers = f'Content-Length: {len(self._body)}\r\n' if self._body else ''
+            body = self._body or ''
             raw = f'{self._method} {self._path} HTTP/1.0\r\n{headers}\r\n{body}'
             return io.BytesIO(raw.encode('utf-8'))
+        # 'wb' is what the handler writes the response body to
         elif args[0] == 'wb':
             return self._mock_wfile
 
 
-# fixtures
-# still trying to follow the exapmes
-
+# Fixtues 
 @pytest.fixture
 def dummy_client():
     return ('127.0.0.1', 80)
@@ -44,17 +40,18 @@ def dummy_client():
 def dummy_server():
     return None
 
-# make handler use a tiny write buffer (like the example)
+# small write buffer i dont really get this but it works so cool
 @pytest.fixture(autouse=True)
 def patch_wbufsize(mocker):
     mocker.patch.object(SquirrelServerHandler, 'wbufsize', 1)
 
-# stub SquirrelDB.__init__ so we never open sqlite
+# makes sure that it  never open a real sqlite connection
 @pytest.fixture
 def mock_db_init(mocker):
     return mocker.patch.object(SquirrelDB, '__init__', return_value=None)
 
-# convenience fixture to mock response methods and assert calls
+# Took these from the example thes are great
+# read the doc and still only kinda got whats going on wit hthes 
 @pytest.fixture
 def mock_response_methods(mocker):
     mock_send_response = mocker.patch.object(SquirrelServerHandler, 'send_response')
@@ -63,20 +60,17 @@ def mock_response_methods(mocker):
     return mock_send_response, mock_send_header, mock_end_headers
 
 
-# tests
+# Tests
+def describe_routing_for_unknown_resource():
 
+    def it_returns_404_for_unknown_collection(mocker, mock_db_init, dummy_client, dummy_server, mock_response_methods):
+        # GET /mike should route to handle404 vcause it doesn't exist
+        req = FakeRequest(mocker.Mock(), 'GET', '/mike')
 
-def describe_GET():
+        handler = SquirrelServerHandler(req, dummy_client, dummy_server)
 
-        def it_lists_all_squirrels_with_200_json(stub_db_ctor, resp_fx, mocker, client, server):
-            mock_get = mocker.patch.object(SquirrelDB, "getSquirrels", return_value=["A", "B"])
-            req = FakeRequest(mocker.Mock(), "GET", "/squirrels")
-
-            handler = SquirrelServerHandler(req, client, server)
-
-            mock_get.assert_called_once_with()
-            send, hdr, end = resp_fx
-            send.assert_called_once_with(200)
-            hdr.assert_called_once_with("Content-Type", "application/json")
-            end.assert_called_once()
-            handler.wfile.write.assert_called_once_with(bytes(json.dumps(["A", "B"]), "utf-8"))
+        send, hdr, end = mock_response_methods
+        send.assert_called_once_with(404)
+        hdr.assert_called_once_with("Content-Type", "text/plain")
+        end.assert_called_once()
+        handler.wfile.write.assert_called_once_with(b"404 Not Found")
