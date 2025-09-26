@@ -61,3 +61,22 @@ def mock_response_methods(mocker):
     mock_send_header   = mocker.patch.object(SquirrelServerHandler, 'send_header')
     mock_end_headers   = mocker.patch.object(SquirrelServerHandler, 'end_headers')
     return mock_send_response, mock_send_header, mock_end_headers
+
+
+# tests
+
+
+def describe_GET():
+
+        def it_lists_all_squirrels_with_200_json(stub_db_ctor, resp_fx, mocker, client, server):
+            mock_get = mocker.patch.object(SquirrelDB, "getSquirrels", return_value=["A", "B"])
+            req = FakeRequest(mocker.Mock(), "GET", "/squirrels")
+
+            handler = SquirrelServerHandler(req, client, server)
+
+            mock_get.assert_called_once_with()
+            send, hdr, end = resp_fx
+            send.assert_called_once_with(200)
+            hdr.assert_called_once_with("Content-Type", "application/json")
+            end.assert_called_once()
+            handler.wfile.write.assert_called_once_with(bytes(json.dumps(["A", "B"]), "utf-8"))
